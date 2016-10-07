@@ -1,0 +1,211 @@
+--
+--
+-- State machine to control trains
+--
+--
+
+LIBRARY IEEE;
+USE  IEEE.STD_LOGIC_1164.all;
+USE  IEEE.STD_LOGIC_ARITH.all;
+USE  IEEE.STD_LOGIC_UNSIGNED.all;
+
+
+ENTITY Tcontrol IS
+	PORT(
+		-- PORT statement contains the inputs and outputs of the device.
+		reset, clock : IN STD_LOGIC;
+		sensor1, sensor2, sensor3, sensor4, sensor5, sensor6  : IN STD_LOGIC;
+		switch1, switch2, switch3, switch4  : OUT STD_LOGIC;
+		dirA, dirB : OUT STD_LOGIC_VECTOR(1 DOWNTO 0)
+	);
+END Tcontrol;
+
+
+ARCHITECTURE a OF Tcontrol IS
+
+	-- We create a new type called STATE_TYPE that is only allowed
+	-- to have the values specified here. This has several benefits:
+	-- 1) Allows us to use descriptive names for values instead of
+	--    arbitrary numbers.
+	-- 2) Ensures that we can never accidentally set a signal of
+	--    this type to an invalid value.
+	-- 3) Helps the synthesis software create efficient hardware for our design.
+	TYPE STATE_TYPE IS (
+		-- list all possible values for this type
+		Start,
+		Down,
+		Bhold,
+		Ahold,
+		Bcapture,
+		Apass,
+		Asouth,
+		BInCap
+	);
+	-- Now we can create a signal of our new type.  Note that there is
+	-- nothing special Start the names "state" or "state_type"; it just makes
+	-- sense to use these names because that is how we are using them.
+	SIGNAL state : STATE_TYPE;
+	-- Here we create some new internal signals to help with later CASE statements.
+	SIGNAL sensor12, sensor13, sensor24 ,sensor34, sensor35 : std_logic_vector(1 DOWNTO 0);
+	SIGNAL sensor245 : std_logic_vector(2 DOWNTO 0);
+	SIGNAL sensor3456: std_logic_vector(3 DOWNTO 0);
+
+BEGIN
+	-- A process block is required for clocked logic, such as a state machine.
+	PROCESS (clock, reset) -- sensitivity list: only 'clock' and 'reset' *cause*
+	                       -- things to happen in this process.
+	BEGIN
+		IF reset = '1' THEN
+			-- Reset to this state
+			state <= Start;
+		ELSIF clock'EVENT AND clock = '1' THEN
+			-- Case statement to determine next state.
+			CASE state IS
+				WHEN Start =>
+					-- Here we use the internal signals that we created.  This is
+					-- just tidier than a bunch of IF-ELSIF-ELSE statements on the
+					-- individual inputs.
+					CASE Sensor245 IS
+						WHEN "100" => state <= Down;
+						WHEN "010" => state <= BInCap;
+						WHEN "001" => state <= Ahold;
+						WHEN OTHERS => state <= Start;
+					END CASE;
+								
+				WHEN Down =>
+					CASE Sensor3456 IS
+						WHEN "1000" => state <= Start;
+						WHEN "0100" => state <= BInCap;
+						WHEN "0010" => state <= Ahold;
+						WHEN "0001" => state <= Asouth;
+						WHEN OTHERS => state <= Down;
+					END CASE;
+
+				WHEN Bhold =>
+					IF Sensor1 = '1' THEN
+						state <= Down;
+					ELSE
+						state <= Bhold;
+					END IF;
+
+
+				WHEN Ahold =>
+					CASE Sensor12 IS
+						WHEN "10" => state <= Bcapture;
+						WHEN "01" => state <= BInCap;
+						WHEN OTHERS => state <= Ahold;
+					END CASE;
+
+				WHEN Bcapture =>
+					IF Sensor3 = '1' THEN
+						state <= Apass;
+					ELSE
+						state <= Bcapture;
+					END IF;
+					
+
+				WHEN Apass =>
+					CASE Sensor12 IS
+						WHEN "10" => state <= Start;
+						WHEN "01" => state <= Bhold;
+						WHEN OTHERS => state <= Apass;
+					END CASE;
+					
+				WHEN Asouth =>
+					CASE Sensor35 IS
+						WHEN "10" => state <= Apass;
+						WHEN "01" => state <= Ahold;
+						WHEN OTHERS => state <= Asouth;
+					END CASE;
+					
+				WHEN BInCap =>
+					IF Sensor3 = '1' THEN
+						state <= Apass;
+					ELSE
+						state <= BInCap;
+					END IF;
+
+			END CASE;
+		END IF;
+	END PROCESS;
+
+
+	-- Notice that the following logic is NOT in a process block,
+	-- and thus does not depend on any events.  Everything here is purely
+	-- comBholdational logic, and exists in parallel with everything else.
+	
+	-- ComBholde bits for the internal signals declared above ("&" operator
+	-- concatenates bits).  Simply naming a signal "sensor12" doesn't do anything;
+	-- we have to actually assign signals values.
+	sensor12 <= sensor1 & sensor2;
+	sensor13 <= sensor1 & sensor3;
+	sensor24 <= sensor2 & sensor4;
+	sensor35 <= sensor3 & sensor5;
+	sensor3456 <= sensor3 & sensor4 & sensor5 & sensor6;
+	sensor245 <= sensor2 & sensor4 & sensor5;
+
+	-- The following outputs depend on the state.
+	WITH state SELECT Switch1 <=
+		'1' WHEN Start,
+		'1' WHEN Down,
+		'0' WHEN Bhold,
+		'0' WHEN Ahold,
+		'0' WHEN Bcapture,
+		'0' WHEN Apass,
+		'1' WHEN Asouth,
+		'1' WHEN BInCap;
+		
+	WITH state SELECT Switch2 <=
+		'1' WHEN Start,
+		'1' WHEN Down,
+		'0' WHEN Bhold,
+		'0' WHEN Ahold,
+		'1' WHEN Bcapture,
+		'0' WHEN Apass,
+		'1' WHEN Asouth,
+		'1' WHEN BInCap;
+		
+	WITH state SELECT Switch3 <=
+		'0' WHEN Start,
+		'1' WHEN Down,
+		'1' WHEN Bhold,
+		'0' WHEN Ahold,
+		'0' WHEN Bcapture,
+		'0' WHEN Apass,
+		'1' WHEN Asouth,
+		'0' WHEN BInCap;
+		
+	WITH state SELECT Switch4 <=
+		'0' WHEN Start,
+		'0' WHEN Down,
+		'1' WHEN Bhold,
+		'0' WHEN Ahold,
+		'0' WHEN Bcapture,
+		'1' WHEN Apass,
+		'1' WHEN Asouth,
+		'1' WHEN BInCap;
+		
+	WITH state SELECT DirA <= --10==GO 00 == STOP
+		"10" WHEN Start,
+		"10" WHEN Down,
+		"10" WHEN Bhold,
+		"00" WHEN Ahold,
+		"00" WHEN Bcapture,
+		"10" WHEN Apass,
+		"10" WHEN Asouth,
+		"00" WHEN BInCap;
+		
+	WITH state SELECT DirB <= --01==GO 00==STOP
+		"01" WHEN Start,
+		"01" WHEN Down,
+		"00" WHEN Bhold,
+		"01" WHEN Ahold,
+		"01" WHEN Bcapture,
+		"00" WHEN Apass,
+		"01" WHEN Asouth,
+		"01" WHEN BInCap;
+	
+
+END a;
+
+
