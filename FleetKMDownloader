@@ -1,0 +1,390 @@
+# Eric Pate
+# HW7
+
+# I completed this assignment on my own using only my own knowledge and the following resources
+
+#http://docs.python.org/3.3/library/xml.etree.elementtree.html ## XML HELP
+
+#https://neweden-dev.com/ZKillboard_API#Information_modifiers ## zkill API
+
+# http://docs.python.org/3.3/library/urllib.html ##URLLIB info
+
+# http://stackoverflow.com/questions/3129355/python-2-vs-python-3-urllib-formats ## JSON IMPORT method
+
+# Probably some I forgot, I went through TONS of stuff on CCP's API wiki
+
+# import ALL the THINGS! :)
+import tkinter
+from tkinter import *
+import copy
+import urllib
+from urllib import request
+from urllib import parse
+# xml import code
+import xml.etree.ElementTree as ET
+from tkinter import messagebox
+import json
+#
+
+# NOTE TO GRADER: So I saw this assignment's extra credit and found myself inspired to develop a mini-app
+# I ACTUALLY REALLY NEED! This should more than qualify for the HW assignment as I'll do my best to make sure
+# it actually fufills the requirements :)
+
+# Note #2 I WILL BE USING URLLIB not urllib2, which (I think) means this code is Python 3.X.X ONLY!!
+
+
+class scraper(tkinter.Tk):
+      def __init__(self,parent):
+            tkinter.Tk.__init__(self,parent)
+            self.parent=parent
+            self.grid()
+
+
+            #VARIABLE SETUP BELOW
+            self.USERNAME=StringVar() # var to hold the list of characters
+            self.CHARACTERS=[]  # master list to hold the list of characters you want to download
+            self.DB=[] # DATABASE file format==[('Lord X3n0s Aeon',91643761) , (str,int)]
+            #
+            self.YEAR=StringVar()
+            self.MONTH=StringVar()
+            self.DAY=StringVar()
+            self.YEARend=StringVar()
+            self.MONTHend=StringVar()
+            self.DAYend=StringVar()
+                                                      #variables to hold input from time
+            self.tStart=StringVar()
+            self.tEnd=StringVar() # fleet start and stop time vars, used for pulling combat reports
+            self.DESTROYED=0 # storage variable for total killmail ISK damage
+            self.KMalreadyCounted=[] # a storage variable to hold KMs captured from other pilot's logs
+            self.DUPLICATES=0 # a storage var for the number of shared KMs
+            self.UNIQUEkms=0
+            self.SHAREDkms=0 # holder vars for unique and shared fleet KMs.
+            self.UNIQUEkmsSTR=StringVar()
+            self.DESTROYEDSTR=StringVar() # STR duplicates=GUI holding vars, =0 are operator vars
+            self.NoPilotID=[] # var to count pilots not found
+            self.MVK=0 # holder var for most valuable kill
+            self.MVKSTR=StringVar()
+            self.AVKSTR=StringVar() # string vars for the GUI 
+            #
+            #GUI BELOW
+            # get data button
+            goButton=tkinter.Button(self,text='Generate Fleet Report', command=self.getInfo,width=25)
+            goButton.grid(column=0,row=0)
+            # get Pilot IDs
+            idButton=tkinter.Button(self,text='Fetch Pilot IDs', command=self.getPilotID,width=25)
+            idButton.grid(column=1,row=0)
+            # reset fleet list button
+            resetButton=tkinter.Button(self,text='Reset Fleet', command=self.reset,width=25)
+            resetButton.grid(column=4,row=0)
+            # print Pilot list
+            charButton=tkinter.Button(self,text='Print Pilot List', command=self.printLIST,width=25)
+            charButton.grid(column=2,row=0)
+            # DEMO Button
+            demoButton=tkinter.Button(self,text='GRADER CLICK THIS FOR GET INFO', command=self.demo,width=25)
+            demoButton.grid(column=4,row=2)
+            #### TIME ENTRY
+            # START LABEL
+            tstarter=tkinter.Label(self,text='Start')
+            tstarter.grid(column=0,row=1)
+            # END LABEL
+            tender=tkinter.Label(self,text='End')
+            tender.grid(column=1,row=1)
+            #year entry boxes
+            yearLb=tkinter.Label(self,text='Year:(yyyy)')
+            yearLb.grid(column=0,row=2,sticky='w')
+            yearBox=tkinter.Entry(self,width=10,textvariable=self.YEAR,relief='sunken')
+            yearBox.grid(column=0,row=2)
+            #
+            yearBoxend=tkinter.Entry(self,width=10,textvariable=self.YEARend,relief='sunken')
+            yearBoxend.grid(column=1,row=2)           
+            # month entry boxes
+            monthLb=tkinter.Label(self,text='Month:(mm)')
+            monthLb.grid(column=0,row=3,sticky='w')
+            monthBox=tkinter.Entry(self,width=10,textvariable=self.MONTH,relief='sunken')
+            monthBox.grid(column=0,row=3)
+            #
+            monthBoxend=tkinter.Entry(self,width=10,textvariable=self.MONTHend,relief='sunken')
+            monthBoxend.grid(column=1,row=3)
+            # day entry boxes
+            dayLb=tkinter.Label(self,text='Day:(dd)')
+            dayLb.grid(column=0,row=4,sticky='w')
+            dayBox=tkinter.Entry(self,width=10,textvariable=self.DAY,relief='sunken')
+            dayBox.grid(column=0,row=4)
+            #
+            dayBoxend=tkinter.Entry(self,width=10,textvariable=self.DAYend,relief='sunken')
+            dayBoxend.grid(column=1,row=4)
+            # tStart entry box
+            tS=tkinter.Label(self,text='UTC:(hh:ss)')
+            tS.grid(column=0,row=5,sticky='w')
+            tSbox=tkinter.Entry(self,width=10,textvariable=self.tStart,relief='sunken')
+            tSbox.grid(column=0,row=5)
+            # tEnd entry box
+            tEbox=tkinter.Entry(self,width=10,textvariable=self.tEnd,relief='sunken')
+            tEbox.grid(column=1,row=5)
+            #
+            #### /TIME ENTRY
+            #
+            #Character Name Entry Box
+            namerBox=tkinter.Entry(self,width=60,textvariable=self.USERNAME,relief='sunken')
+            namerBox.grid(column=0,row=6, columnspan=2, sticky='w')
+            # add pilot to list button
+            addButton=tkinter.Button(self,text='Add Pilot to Fleet', command=self.addToList,width=40)
+            addButton.grid(column=2,row=6,columnspan=3)
+
+            #### STATS / DAMAGE UI
+            # Main Statistics Label
+            statL=tkinter.Label(self,text='Fleet Statistics')
+            statL.grid(column=0,row=7,sticky='e')
+            # Unique Kill Mails
+            unKm=tkinter.Label(self,text='Total Ships Killed:')
+            unKm.grid(column=0,row=7,sticky='e')
+            unKmBox=tkinter.Entry(self,width=30,textvariable=self.UNIQUEkmsSTR,relief='sunken')
+            unKmBox.grid(column=1,row=7,sticky='w')
+            # Most Valuable Kill
+            mvK=tkinter.Label(self,text='Most Valuable Kill:')
+            mvK.grid(column=0,row=8,sticky='e')
+            mvKBox=tkinter.Entry(self,width=30,textvariable=self.MVKSTR,relief='sunken')
+            mvKBox.grid(column=1,row=8,sticky='w')
+            # Average Kill Value
+            aK=tkinter.Label(self,text='Average Kill Value:')
+            aK.grid(column=0,row=9,sticky='e')
+            aKBox=tkinter.Entry(self,width=30,textvariable=self.AVKSTR,relief='sunken')
+            aKBox.grid(column=1,row=9,sticky='w')
+            # Total ISK Destroyed
+            ISKk=tkinter.Label(self,text='Total ISK Destroyed:')
+            ISKk.grid(column=0,row=10,sticky='e')
+            ISKkBox=tkinter.Entry(self,width=30,textvariable=self.DESTROYEDSTR,relief='sunken')
+            ISKkBox.grid(column=1,row=10,sticky='w')
+
+      def getInfo(self): # THE FINAL BUILDER FUNCTION
+            if len(self.DB)<1:
+                   messagebox.showerror('No Pilots IDs Found','Need Pilot IDs from CCP, click"Fetch Pilot IDs" to get them.')
+            else:
+                  ## VAR RESET FOR ITERATIVE RUNS
+                  self.DESTROYED=0 # storage variable for total killmail ISK damage
+                  self.KMalreadyCounted=[] # a storage variable to hold KMs captured from other pilot's logs
+                  self.DUPLICATES=0 # a storage var for the number of shared KMs
+                  self.UNIQUEkms=0
+                  self.SHAREDkms=0 # holder vars for unique and shared fleet KMs.
+                  self.UNIQUEkmsSTR.set('')
+                  self.DESTROYEDSTR.set('') # STR duplicates=GUI holding vars, =0 are operator vars
+                  self.MVK=0
+                  ##
+                  timer=len(self.CHARACTERS)
+                  i=0 # reset clock
+                  #### self.DB now has ('name',ID) list for all pilots
+
+                  #### ZKILL API ACCESS BELOW
+                  ## TIME STAMP
+                  # sanitize time stamps
+                  t1=copy.deepcopy(self.tStart.get())
+                  t2=copy.deepcopy(self.tEnd.get())
+                  t1=t1.replace(':','')
+                  t2=t2.replace(':','')
+                  yy=self.YEAR.get()
+                  mm=self.MONTH.get()
+                  dd=self.DAY.get()
+                  yy2=self.YEARend.get()
+                  mm2=self.MONTHend.get()
+                  dd2=self.DAYend.get()                           # these extract the time values from the GUI
+                  # //
+                  timeStampS=yy+mm+dd+t1
+                  timeStampE=yy2+mm2+dd2+t2 
+                  ## /TIME STAMP
+                  #
+                  ## ZKILLBOARD ACCESS BELOW
+                  baseZ='https://zkillboard.com/api/kills/characterID/'
+                  print('\n'+"Dialing ZKillboard's API server...Please Wait...")
+                  while i<timer: # master loop for PILOT list
+                        operator=copy.deepcopy(self.DB[i])  # format=('Lord X3n0s Aeon',91643761)
+                        IDZ=copy.deepcopy(operator[1])      #fetch char ID
+                        IDZ=str(IDZ)                                    # make char ID string
+                        IDZ=IDZ+'/'                               # add slash
+                        TAR=(baseZ+IDZ+'startTime/'+timeStampS+'/endTime/'+timeStampE+'/') #target URL for zKill API Access
+                        # TARGET WAS SUCESSFUL
+                        #
+                        print('\n','Loading ZKill data for Pilot:',str(self.CHARACTERS[i]),'(',(i+1),'of',timer,')','...')
+                        bulkKillM=urllib.request.urlopen(TAR) # fetch the data from CCP API
+                        content = bulkKillM.read()
+                        print('.......')
+                        data = json.loads(content.decode('utf8')) # IMPORT DATA FROM JSON TYPE
+                        long=len(data)
+                        t=0
+                        
+                        while t<long:
+                              # NEED: LOGIC TO EXLUDE KMS ALREADY FOUND
+                              combatDict=data[t]                                                      #call the kill mail we want
+                              killID=combatDict['killID']                                     # Unique API ID for each KM
+                              killID=str(killID)                                                        #make killID a string
+                              try:  # TRY to get the index of the KM-ID in the master-list, if not found ERROR (good)
+                                    self.KMalreadyCounted.index(killID)
+                                    self.DUPLICATES=self.DUPLICATES+1
+                              except: # I didn't find the KM in the list of ones we've looked at, so add it!
+                                    self.KMalreadyCounted.append(killID)                        #add to the list of strings w/KM ID's
+                                    subber=combatDict['zkb']                                          # jump to the zkb dict, has the calculated values
+                                    tempVal=copy.deepcopy(subber['totalValue'])           #the total value of the kill for this one
+                                    self.DESTROYED=self.DESTROYED+tempVal     # add to our master list of ISK destroyed
+                                    if tempVal>self.MVK:
+                                          self.MVK=tempVal                    # if the value of this kill is > our current MVK replace MVK w/it
+                              
+                              #
+                              t=t+1                                                                  #clock up
+                        
+                        i=i+1
+
+                  print('\n','Done!')
+
+                  #### OUTPUT ANSWERS TO GUI ELEMENTS
+                  # add commas to output + general cleanup
+                  ds=self.DESTROYED                                                 #odestroyed ships
+                  ds=round(ds)
+                  ds='{0:,}'.format(ds)                           #format
+                  avg=(self.DESTROYED)/(len(self.KMalreadyCounted))                 #average value
+                  avg=round(avg)
+                  avg='{0:,}'.format(avg)                  # format
+                  mvk=self.MVK                                                                  # Most valuable kill
+                  mvk=round(mvk)
+                  mvk='{0:,}'.format(mvk)                 # format
+                  uni=len(self.KMalreadyCounted)
+                  # write to gui                  
+                  self.MVKSTR.set(mvk)
+                  self.AVKSTR.set(avg)
+                  self.UNIQUEkmsSTR.set(uni)
+                  self.DESTROYEDSTR.set(ds)
+                  
+
+      def getPilotID(self):
+            if len(self.CHARACTERS)<1:
+                   messagebox.showerror('No Pilots in Fleet', "You need to add pilots to your fleet list first!")
+            else:
+                  #
+                  #### CLOCKS
+                  timer=len(self.CHARACTERS)
+                  #### /CLOCKS
+                  #
+                  #### PREFLIGHT READOUTS
+                  print('\n','Number of Pilots to check: ', timer)
+                  #
+                  print('\n','Pulling IDs for the following characters:')
+
+                  for row in self.CHARACTERS:
+                        print(row)
+                  #
+                  print('\n',"Dialing CCP's API Server... Please Wait...")
+                  #### /PREFLIGHT READOUTS
+                  base='http://api.eveonline.com/eve/CharacterID.xml.aspx?names=' # base URL to be added to for CCP API
+                  #
+                  i=0
+                  while i<timer:
+                        #### URL FINDER CODE
+                        nameThisTime=str(copy.deepcopy(self.CHARACTERS[i])) # grab the character list w/o touching it
+                        print('\n','Fetching Pilot ID: ',nameThisTime,'(',(i+1),'of',timer,')') # print step
+                        charFetchURL=base+nameThisTime #target URL for XML reader based on
+                        tmp=charFetchURL.replace(' ','%20') # replace all spaces w/spacer ASCII and ASSIGN NEW
+                        #
+                        #### GET THE DATA FROM THE WEBSITE BELOW (fixed URL for now, URL finder above)
+                        #
+                        bulkData=urllib.request.urlopen(tmp) # fetch the data from CCP API
+                        tree = ET.parse(bulkData)                                   # XML formatter
+                        root = tree.getroot()                                             #builds a root index from the XML file
+                        #ID=0
+                        for row in root.iter('row'):
+                              tsp=row.get('characterID')                            # get the ID Num
+                              if tsp=='0':
+                                    print('>>WARNING!: Pilot',str(self.CHARACTERS[i]),'NOT FOUND')
+                                    self.NoPilotID.append(i) # add index of pilot name to "not found" list
+                              else:
+                                    tsp=int(tsp)                                                # make ID an integer
+                                    dbTMP=(self.CHARACTERS[i],tsp)            # create tuple for DB entry
+                                    self.DB.append(dbTMP)                                 # add tuple to the main Database
+
+                        i=i+1 #clock up to next character
+                  
+                  if len(self.NoPilotID)>0:
+                        print('\n','>>WARNING! Some pilots were NOT FOUND!')
+                        for item in self.NoPilotID:
+                              print("I couldn't find pilot:",str(self.CHARACTERS[item]))
+                        
+                  else:
+                        qq=1
+                        print('\n','>>>GOOD: All IDs Fetched Successfully. Ready to generate Fleet Report.')
+
+            
+
+            
+      def addToList(self): # function to add character names to USERNAME list
+            if self.USERNAME.get()!='': # if the username field is not empty append to database file
+                  if self.USERNAME.get() in self.CHARACTERS: # IF the pilot being added is already in the character list
+                        print('\n','>>>ERROR: Pilot is already in your fleet, cannot add again!')
+                  else:
+                        self.CHARACTERS.append(self.USERNAME.get())
+                        print('Added{',self.USERNAME.get(),'}to fleet list.')
+                        self.USERNAME.set('')
+
+      def printLIST(self): # function to print out list of pilots in fleet
+            ter=len(self.CHARACTERS)
+            if ter>0:
+                  print('\n',"Current Fleet Members: ")
+                  for row in self.CHARACTERS:
+                        print(row)
+            else:
+                  print('\n','>>>ERROR: No Pilots in fleet, type one to the entry box and select "Add Pilot".')
+
+      def reset(self): # a function to reset the list of characters in fleet
+            self.CHARACTERS=[]
+            self.DESTROYED=0 # storage variable for total killmail ISK damage
+            self.KMalreadyCounted=[] # a storage variable to hold KMs captured from other pilot's logs
+            self.DUPLICATES=0 # a storage var for the number of shared KMs
+            self.UNIQUEkms=0
+            self.SHAREDkms=0 # holder vars for unique and shared fleet KMs.
+            self.UNIQUEkmsSTR.set('')
+            self.DESTROYEDSTR.set('') # STR duplicates=GUI holding vars, =0 are operator vars
+            self.NoPilotID=[] # var to count pilots not found
+            self.MVK=0 # holder var for most valuable kill
+            self.MVKSTR.set('')
+            self.AVKSTR.set('')
+            print('\n','Pilot List & Fleet Statistics were just reset.')
+
+      def demo(self):
+            ### FULL RESET
+            self.USERNAME.set('') # var to hold the list of characters
+            self.CHARACTERS=[]  # master list to hold the list of characters you want to download
+            self.DB=[] # DATABASE file format==[('Lord X3n0s Aeon',91643761) , (str,int)]
+            self.DESTROYED=0 # storage variable for total killmail ISK damage
+            self.KMalreadyCounted=[] # a storage variable to hold KMs captured from other pilot's logs
+            self.DUPLICATES=0 # a storage var for the number of shared KMs
+            self.UNIQUEkms=0
+            self.SHAREDkms=0 # holder vars for unique and shared fleet KMs.
+            self.UNIQUEkmsSTR.set('')
+            self.DESTROYEDSTR.set('') # STR duplicates=GUI holding vars, =0 are operator vars
+            self.NoPilotID=[] # var to count pilots not found
+            self.MVK=0 # holder var for most valuable kill
+            #### /FULL RESET
+            #### DEMO CODE VALUES
+            self.CHARACTERS=['Lord X3n0s Aeon',"Colonel O'neil Tauri",'Fiora Stroud','Azazare','Zataraz Neltharon','Viceroy Tyr Tauri','Snipes Tauri','PeachOut'] # temp tester list
+#            self.CHARACTERS=['Lord X3n0s Aeon']
+            self.YEAR.set(2014)
+            self.MONTH.set('03')
+            self.DAY.set('01')
+            self.YEARend.set(2014)
+            self.MONTHend.set('03')
+            self.DAYend.set('05')
+            self.tStart.set('00:00')
+            self.tEnd.set('23:99') # setup testing capture window
+
+
+            self.getPilotID() # setup
+            self.getInfo() # Master Function
+
+            
+            #### DEMO CODE VALUES
+            
+            
+
+
+
+
+app=scraper(None)
+app.title('EVE Online Fleet Killboard Downloader')
+app.mainloop()
+            
