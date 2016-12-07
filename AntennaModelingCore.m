@@ -1,4 +1,5 @@
 %Antenna toolbox practice
+% Eric Pate
 
 function [Xi,Yi,EmagI,Dvec]=AntennaModelingCore(f0,ant,x,y,lat0,lon0,Number)
 
