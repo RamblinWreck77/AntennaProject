@@ -1,4 +1,6 @@
 %Create Knockout Matricies
+% Eric Pate
+
 function [Return]=kockout(Input)
 i=1;
 k=1;
